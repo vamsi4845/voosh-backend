@@ -70,3 +70,65 @@ export async function initializeCollection(): Promise<boolean> {
   }
 }
 
+export async function upsertVectors(points: VectorPoint[]): Promise<boolean> {
+  try {
+    const client = getQdrantClient();
+    
+    await client.upsert(COLLECTION_NAME, {
+      wait: true,
+      points: points.map(point => ({
+        id: point.id,
+        vector: point.vector,
+        payload: {
+          text: point.text,
+          articleId: point.articleId,
+          chunkId: point.chunkId,
+          url: point.url,
+          title: point.title,
+        },
+      })),
+    });
+    
+    logger.debug(`Upserted ${points.length} vectors`);
+    return true;
+  } catch (error) {
+    logger.error('Failed to upsert vectors:', error);
+    throw error;
+  }
+}
+
+export async function searchSimilar(queryVector: number[], topK = 5): Promise<RetrievedPassage[]> {
+  try {
+    const client = getQdrantClient();
+    
+    const results = await client.search(COLLECTION_NAME, {
+      vector: queryVector,
+      limit: topK,
+      score_threshold: 0.3,
+    });
+    
+    return results.map(result => ({
+      score: result.score ?? 0,
+      text: (result.payload?.text as string) || '',
+      articleId: (result.payload?.articleId as string) || '',
+      chunkId: (result.payload?.chunkId as string) || '',
+      url: (result.payload?.url as string) || '',
+      title: (result.payload?.title as string) || '',
+    }));
+  } catch (error) {
+    logger.error('Failed to search vectors:', error);
+    throw error;
+  }
+}
+
+export async function getCollectionInfo(): Promise<unknown> {
+  try {
+    const client = getQdrantClient();
+    const info = await client.getCollection(COLLECTION_NAME);
+    return info;
+  } catch (error) {
+    logger.error('Failed to get collection info:', error);
+    throw error;
+  }
+}
+
