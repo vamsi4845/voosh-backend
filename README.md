@@ -268,7 +268,7 @@ socket.on('chat:error', (data) => {
 | `REDIS_URL` | Redis connection URL | `redis://default:password@endpoint.upstash.io:6379` (cloud) or `redis://localhost:6379` (local) |
 | `SESSION_TTL` | Session TTL in seconds | `86400` (24 hours) |
 | `NODE_ENV` | Environment | `development` |
-| `CORS_ORIGIN` | CORS allowed origin | `http://localhost:5173` |
+| `FRONTEND_URL` | CORS allowed origin | `http://localhost:5173` |
 
 ### Session TTL Configuration
 
@@ -375,7 +375,7 @@ For production deployment, use cloud services (all have free tiers):
    - `QDRANT_URL` (from Qdrant Cloud)
    - `REDIS_URL` (from Upstash Redis)
    - `SESSION_TTL=86400`
-   - `CORS_ORIGIN` (your frontend URL)
+   - `FRONTEND_URL` (your frontend URL)
 
 #### Railway
 
@@ -401,7 +401,7 @@ Any Node.js hosting platform works (Vercel, Heroku, etc.). Just ensure:
 
 **Optional**:
 - `SESSION_TTL` - Default: 86400 (24 hours)
-- `CORS_ORIGIN` - Your frontend URL
+- `FRONTEND_URL` - Your frontend URL
 - `PORT` - Server port (default: 3001)
 
 ## Troubleshooting
