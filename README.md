@@ -298,28 +298,14 @@ SESSION_TTL=2592000  # 30 days
 
 To pre-load popular queries or warm up the cache:
 
-1. Create a script in `src/scripts/warmCache.js`:
-```javascript
-import { processQuery } from '../services/ragService.js';
+The cache warming script is already set up at `src/scripts/warmCache.ts`. You can customize the `popularQueries` array in the script to match your needs.
 
-const popularQueries = [
-  'What are the latest technology news?',
-  'Tell me about recent business developments',
-  // Add more queries
-];
-
-for (const query of popularQueries) {
-  await processQuery(query);
-  await new Promise(resolve => setTimeout(resolve, 1000));
-}
-```
-
-2. Run the script:
+Run the cache warming script:
 ```bash
-node src/scripts/warmCache.js
+npm run warm-cache
 ```
 
-**Note**: Cache warming is optional and mainly useful for production deployments to improve response times for common queries.
+**Note**: Cache warming is optional and mainly useful for production deployments to improve response times for common queries. The script processes each query sequentially with a 1-second delay between queries to respect API rate limits.
 
 ## Project Structure
 
