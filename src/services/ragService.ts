@@ -1,5 +1,5 @@
 import { getEmbedding } from './embeddingService.js';
-import { searchSimilar, RetrievedPassage } from './vectorStore.js';
+import { searchSimilar } from './vectorStore.js';
 import { generateResponse, generateStreamResponse } from './geminiService.js';
 import { logger } from '../utils/logger.js';
 

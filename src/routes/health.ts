@@ -4,7 +4,7 @@ import { getCollectionInfo } from '../services/vectorStore.js';
 
 const router = express.Router();
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', async (_req: Request, res: Response) => {
   try {
     const health: {
       status: string;

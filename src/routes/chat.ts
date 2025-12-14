@@ -11,12 +11,13 @@ interface ChatRequestBody {
   message: string;
 }
 
-router.post('/', async (req: Request<{}, {}, ChatRequestBody>, res: Response) => {
+router.post('/', async (req: Request<{}, {}, ChatRequestBody>, res: Response): Promise<void> => {
   try {
     let { sessionId, message } = req.body;
     
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
-      return res.status(400).json({ error: 'Message is required' });
+      res.status(400).json({ error: 'Message is required' });
+      return;
     }
     
     message = message.trim();

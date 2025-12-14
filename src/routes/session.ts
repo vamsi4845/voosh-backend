@@ -5,12 +5,13 @@ import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
-router.get('/:sessionId/history', async (req: Request, res: Response) => {
+router.get('/:sessionId/history', async (req: Request, res: Response): Promise<void> => {
   try {
     const { sessionId } = req.params;
     
     if (!validateSessionId(sessionId)) {
-      return res.status(400).json({ error: 'Invalid session ID format' });
+      res.status(400).json({ error: 'Invalid session ID format' });
+      return;
     }
     
     const history = await getSessionHistory(sessionId);
@@ -21,12 +22,13 @@ router.get('/:sessionId/history', async (req: Request, res: Response) => {
   }
 });
 
-router.delete('/:sessionId', async (req: Request, res: Response) => {
+router.delete('/:sessionId', async (req: Request, res: Response): Promise<void> => {
   try {
     const { sessionId } = req.params;
     
     if (!validateSessionId(sessionId)) {
-      return res.status(400).json({ error: 'Invalid session ID format' });
+      res.status(400).json({ error: 'Invalid session ID format' });
+      return;
     }
     
     await clearSession(sessionId);
