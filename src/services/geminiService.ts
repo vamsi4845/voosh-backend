@@ -55,6 +55,36 @@ export async function generateResponse(query: string, retrievedPassages: Retriev
   }
 }
 
+function isApiLimitError(error: unknown): boolean {
+  if (error && typeof error === 'object') {
+    const errorObj = error as { message?: string; status?: number; code?: number };
+    const message = errorObj.message?.toLowerCase() || '';
+    const status = errorObj.status || errorObj.code;
+    
+    return (
+      message.includes('quota') ||
+      message.includes('rate limit') ||
+      message.includes('limit exceeded') ||
+      message.includes('429') ||
+      status === 429 ||
+      status === 403
+    );
+  }
+  return false;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (isApiLimitError(error)) {
+    return 'API rate limit exceeded. Please try again later.';
+  }
+  
+  if (error instanceof Error) {
+    return error.message;
+  }
+  
+  return 'An error occurred while generating the response.';
+}
+
 export async function* generateStreamResponse(query: string, retrievedPassages: RetrievedPassage[]): AsyncGenerator<string, void, unknown> {
   try {
     const genAI = getGenAI();
@@ -71,18 +101,29 @@ export async function* generateStreamResponse(query: string, retrievedPassages: 
     
     let chunkCount = 0;
     let totalChars = 0;
-    for await (const chunk of result) {
-      const chunkText = chunk.text;
-      if (chunkText) {
-        chunkCount++;
-        totalChars += chunkText.length;
-        yield chunkText;
-      }
-    }
     
-    logger.info(`[Gemini] Stream complete: ${chunkCount} chunks, ${totalChars} total chars`);
+    try {
+      for await (const chunk of result) {
+        const chunkText = chunk.text;
+        if (chunkText) {
+          chunkCount++;
+          totalChars += chunkText.length;
+          yield chunkText;
+        }
+      }
+      
+      logger.info(`[Gemini] Stream complete: ${chunkCount} chunks, ${totalChars} total chars`);
+    } catch (streamError) {
+      if (isApiLimitError(streamError)) {
+        logger.error('[Gemini] API rate limit exceeded during streaming');
+        throw new Error('API rate limit exceeded. Please try again later.');
+      }
+      logger.error('[Gemini] Error during stream iteration:', streamError);
+      throw streamError;
+    }
   } catch (error) {
-    logger.error('[Gemini] Failed to generate stream response:', error);
-    throw error;
+    const errorMessage = getErrorMessage(error);
+    logger.error(`[Gemini] Failed to generate stream response: ${errorMessage}`, error);
+    throw new Error(errorMessage);
   }
 }

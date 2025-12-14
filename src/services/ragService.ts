@@ -143,14 +143,32 @@ export async function* processQueryStream(query: string, topK = 5, useCache = tr
     
     let fullAnswer = '';
     let chunkCount = 0;
-    for await (const chunk of generateStreamResponse(query, retrievedPassages)) {
-      fullAnswer += chunk;
-      chunkCount++;
-      yield {
-        type: 'chunk',
-        text: chunk,
-      };
+    let streamError: Error | null = null;
+    
+    try {
+      for await (const chunk of generateStreamResponse(query, retrievedPassages)) {
+        fullAnswer += chunk;
+        chunkCount++;
+        yield {
+          type: 'chunk',
+          text: chunk,
+        };
+      }
+    } catch (error) {
+      streamError = error instanceof Error ? error : new Error(String(error));
+      logger.error(`[RAG] Error during streaming: ${streamError.message}`);
+      
+      if (fullAnswer.length > 0) {
+        logger.warn(`[RAG] Partial response received (${fullAnswer.length} chars) before error - discarding partial response`);
+      }
+      
+      throw streamError;
     }
+    
+    if (streamError) {
+      throw streamError;
+    }
+    
     logger.info(`[RAG] Step 4 complete: Generated response (${fullAnswer.length} chars, ${chunkCount} stream chunks)`);
     
     if (useCache) {
