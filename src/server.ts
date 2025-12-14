@@ -12,7 +12,6 @@ import { validateSessionId, generateSessionId } from './utils/sessionManager.js'
 
 import healthRouter from './routes/health.js';
 import sessionRouter from './routes/session.js';
-import chatRouter from './routes/chat.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -34,7 +33,6 @@ app.use(express.json());
 
 app.use('/api/health', healthRouter);
 app.use('/api/session', sessionRouter);
-app.use('/api/chat', chatRouter);
 
 interface SocketMessageData {
   sessionId?: string;
@@ -70,7 +68,7 @@ io.on('connection', (socket: Socket) => {
       await saveMessage(sessionId, userMessage);
       socket.emit('chat:user_message', userMessage);
       
-      logger.info(`Processing stream query for session ${sessionId}`);
+      logger.info(`[Session ${sessionId}] Processing stream query: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`);
       
       let fullResponse = '';
       let sources: Array<{ title?: string; url?: string; score?: number }> = [];
@@ -78,14 +76,17 @@ io.on('connection', (socket: Socket) => {
       for await (const chunk of processQueryStream(message)) {
         if (chunk.type === 'sources') {
           sources = chunk.sources || [];
+          logger.info(`[Session ${sessionId}] Retrieved ${sources.length} sources from vector store`);
           socket.emit('chat:sources', { sources });
         } else if (chunk.type === 'chunk') {
           fullResponse += chunk.text || '';
           socket.emit('chat:response', { text: chunk.text });
         } else if (chunk.type === 'error') {
+          logger.error(`[Session ${sessionId}] Error: ${chunk.message}`);
           socket.emit('chat:error', { message: chunk.message });
           return;
         } else if (chunk.type === 'complete') {
+          logger.info(`[Session ${sessionId}] Processing complete. Response length: ${fullResponse.length} chars`);
           const botMessage: Message = {
             role: 'assistant',
             content: fullResponse,

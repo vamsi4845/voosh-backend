@@ -56,10 +56,13 @@ async function getEmbeddingsWithRetry(texts: string[], retries = 0): Promise<num
 
 export async function getEmbedding(text: string): Promise<number[]> {
   try {
+    logger.info(`[Embedding] Requesting embedding from Jina API (text length: ${text.length} chars)`);
     const embeddings = await getEmbeddingsWithRetry([text]);
-    return embeddings[0] || [];
+    const embedding = embeddings[0] || [];
+    logger.info(`[Embedding] Successfully received embedding (${embedding.length} dimensions)`);
+    return embedding;
   } catch (error) {
-    logger.error('Failed to get embedding:', error);
+    logger.error('[Embedding] Failed to get embedding:', error);
     throw error;
   }
 }

@@ -101,13 +101,16 @@ export async function searchSimilar(queryVector: number[], topK = 5): Promise<Re
   try {
     const client = getQdrantClient();
     
+    logger.info(`[Qdrant] Searching collection "${COLLECTION_NAME}" with topK=${topK}, score_threshold=0.3`);
     const results = await client.search(COLLECTION_NAME, {
       vector: queryVector,
       limit: topK,
       score_threshold: 0.3,
     });
     
-    return results.map(result => ({
+    logger.info(`[Qdrant] Search returned ${results.length} results`);
+    
+    const passages = results.map(result => ({
       score: result.score ?? 0,
       text: (result.payload?.text as string) || '',
       articleId: (result.payload?.articleId as string) || '',
@@ -115,8 +118,14 @@ export async function searchSimilar(queryVector: number[], topK = 5): Promise<Re
       url: (result.payload?.url as string) || '',
       title: (result.payload?.title as string) || '',
     }));
+    
+    if (passages.length > 0) {
+      logger.info(`[Qdrant] Top result: "${passages[0].title}" (score: ${passages[0].score.toFixed(4)})`);
+    }
+    
+    return passages;
   } catch (error) {
-    logger.error('Failed to search vectors:', error);
+    logger.error('[Qdrant] Failed to search vectors:', error);
     throw error;
   }
 }

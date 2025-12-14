@@ -78,12 +78,13 @@ export async function processQuery(query: string, topK = 5, useCache = true): Pr
 
 export async function* processQueryStream(query: string, topK = 5, useCache = true): AsyncGenerator<StreamChunk, void, unknown> {
   try {
-    logger.info(`Processing query stream: ${query.substring(0, 50)}...`);
+    logger.info(`[RAG] Processing query stream: "${query.substring(0, 100)}${query.length > 100 ? '...' : ''}"`);
     
     if (useCache) {
+      logger.info(`[RAG] Checking cache for query...`);
       const cached = await getCachedQueryResult(query);
       if (cached) {
-        logger.info('Returning cached query result (streaming)');
+        logger.info(`[RAG] Cache hit! Returning cached result (${cached.answer.length} chars)`);
         
         yield {
           type: 'sources',
@@ -106,16 +107,19 @@ export async function* processQueryStream(query: string, topK = 5, useCache = tr
         };
         return;
       }
+      logger.info(`[RAG] Cache miss - proceeding with full RAG pipeline`);
     }
     
-    logger.debug('Step 1: Generating query embedding...');
+    logger.info(`[RAG] Step 1: Generating query embedding via Jina API...`);
     const queryEmbedding = await getEmbedding(query);
+    logger.info(`[RAG] Step 1 complete: Embedding generated (${queryEmbedding.length} dimensions)`);
     
-    logger.debug('Step 2: Searching vector store...');
+    logger.info(`[RAG] Step 2: Searching Qdrant vector store (topK=${topK})...`);
     const retrievedPassages = await searchSimilar(queryEmbedding, topK);
+    logger.info(`[RAG] Step 2 complete: Found ${retrievedPassages.length} passages`);
     
     if (retrievedPassages.length === 0) {
-      logger.warn('No relevant passages found');
+      logger.warn(`[RAG] No relevant passages found for query`);
       yield {
         type: 'error',
         message: "I couldn't find relevant information in the news articles to answer your question.",
@@ -123,7 +127,8 @@ export async function* processQueryStream(query: string, topK = 5, useCache = tr
       return;
     }
     
-    logger.debug(`Step 3: Retrieved ${retrievedPassages.length} passages, streaming response...`);
+    logger.info(`[RAG] Step 3: Retrieved ${retrievedPassages.length} passages. Top scores: ${retrievedPassages.slice(0, 3).map(p => p.score.toFixed(3)).join(', ')}`);
+    logger.info(`[RAG] Step 4: Generating response via Gemini API (streaming)...`);
     
     const sources = retrievedPassages.map(p => ({
       title: p.title,
@@ -137,27 +142,34 @@ export async function* processQueryStream(query: string, topK = 5, useCache = tr
     };
     
     let fullAnswer = '';
+    let chunkCount = 0;
     for await (const chunk of generateStreamResponse(query, retrievedPassages)) {
       fullAnswer += chunk;
+      chunkCount++;
       yield {
         type: 'chunk',
         text: chunk,
       };
     }
+    logger.info(`[RAG] Step 4 complete: Generated response (${fullAnswer.length} chars, ${chunkCount} stream chunks)`);
     
     if (useCache) {
+      logger.info(`[RAG] Caching query result...`);
       const result: QueryResult = {
         answer: fullAnswer,
         sources,
       };
       await cacheQueryResult(query, result);
+      logger.info(`[RAG] Query result cached successfully`);
     }
+    
+    logger.info(`[RAG] Query processing complete`);
     
     yield {
       type: 'complete',
     };
   } catch (error) {
-    logger.error('Failed to process query stream:', error);
+    logger.error(`[RAG] Failed to process query stream:`, error);
     const errorMessage = error instanceof Error ? error.message : 'An error occurred while processing your query.';
     yield {
       type: 'error',

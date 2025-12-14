@@ -42,11 +42,6 @@ graph TD
             RedisClient_Msg[redisClient.ts]
         end
 
-        %% REST Flow
-        subgraph Rest_Flow [REST API Flow]
-            ChatRoute[routes/chat.ts]
-        end
-
         %% Shared Services
         RAG[ragService.ts]
         RedisClient_Cache[redisClient.ts]
@@ -64,13 +59,6 @@ graph TD
         SocketHandler -->|Save User Msg| RedisClient_Msg
         RedisClient_Msg -->|Persist History| Redis
         SocketHandler -->|Process Stream| RAG
-        
-        %% REST Interaction
-        Client -- "POST /api/chat" --> Server
-        Server --> ChatRoute
-        ChatRoute -->|Validate Session| SessionMgr
-        ChatRoute -->|Save User Msg| RedisClient_Msg
-        ChatRoute -->|Process Query| RAG
 
         %% RAG Logic
         RAG -->|Check Cache| RedisClient_Cache
@@ -92,9 +80,6 @@ graph TD
         
         RAG -- "Emit: chat:chunk / chat:sources" --> SocketHandler
         SocketHandler -- "Events to Client" --> Client
-        
-        RAG -- "Return JSON" --> ChatRoute
-        ChatRoute -- "JSON Response" --> Client
     end
     
     %% Styling
@@ -102,7 +87,7 @@ graph TD
     classDef database fill:#191919,stroke:#333,stroke-width:2px;
     classDef external fill:#191919,stroke:#333,stroke-width:2px;
     
-    class RAG,NewsIngest,EmbService_Ingest,EmbService_Chat,VecStore_Ingest,VecStore_Chat,GeminiService,SessionMgr,ChatRoute,SocketHandler service;
+    class RAG,NewsIngest,EmbService_Ingest,EmbService_Chat,VecStore_Ingest,VecStore_Chat,GeminiService,SessionMgr,SocketHandler service;
     class Redis,Qdrant,GoogleGemini,RedisClient_Msg,RedisClient_Cache,VecStore_Chat database;
     class Reuters external; 
 ```
@@ -122,8 +107,8 @@ graph TD
 ## Features
 
 - RAG pipeline: News ingestion → Embeddings → Vector store → Retrieval → Gemini generation
-- REST API endpoints for chat and session management
-- Socket.io for streaming responses
+- Socket.io for real-time streaming responses
+- REST API endpoints for session management
 - Redis-based session history with TTL
 - Automatic session ID generation
 - Health check endpoint
@@ -241,36 +226,6 @@ Returns server health status and service connectivity.
   "services": {
     "redis": "connected",
     "qdrant": "connected"
-  }
-}
-```
-
-### Send Chat Message (REST)
-```
-POST /api/chat
-Content-Type: application/json
-
-{
-  "sessionId": "optional-uuid",
-  "message": "What are the latest news about technology?"
-}
-```
-
-**Response:**
-```json
-{
-  "sessionId": "generated-uuid",
-  "response": {
-    "role": "assistant",
-    "content": "Based on the news articles...",
-    "sources": [
-      {
-        "title": "Article Title",
-        "url": "https://example.com/article",
-        "score": 0.85
-      }
-    ],
-    "timestamp": "2024-01-01T00:00:00.000Z"
   }
 }
 ```
@@ -453,7 +408,6 @@ backend/
 │   ├── config/
 │   │   └── config.js          # Environment configuration
 │   ├── routes/
-│   │   ├── chat.js            # REST chat endpoints
 │   │   ├── session.js         # Session management
 │   │   └── health.js          # Health check
 │   ├── services/
@@ -474,7 +428,7 @@ backend/
 
 ## RAG Pipeline Flow
 
-1. **Query Reception**: User sends a query via REST API or Socket.io
+1. **Query Reception**: User sends a query via Socket.io
 2. **Query Embedding**: Query is embedded using Jina Embeddings API
 3. **Vector Search**: Similar passages are retrieved from Qdrant (top-k)
 4. **Context Augmentation**: Retrieved passages are formatted as context

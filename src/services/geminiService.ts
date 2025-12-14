@@ -61,20 +61,28 @@ export async function* generateStreamResponse(query: string, retrievedPassages: 
     
     const context = formatContext(retrievedPassages);
     const prompt = createPrompt(query, context);
+    
+    logger.info(`[Gemini] Generating stream response. Prompt length: ${prompt.length} chars, Context passages: ${retrievedPassages.length}`);
 
     const result = await genAI.models.generateContentStream({
       model: "gemini-2.5-flash",
       contents: prompt,
     });
     
+    let chunkCount = 0;
+    let totalChars = 0;
     for await (const chunk of result) {
       const chunkText = chunk.text;
       if (chunkText) {
+        chunkCount++;
+        totalChars += chunkText.length;
         yield chunkText;
       }
     }
+    
+    logger.info(`[Gemini] Stream complete: ${chunkCount} chunks, ${totalChars} total chars`);
   } catch (error) {
-    logger.error('Failed to generate stream response with Gemini:', error);
+    logger.error('[Gemini] Failed to generate stream response:', error);
     throw error;
   }
 }
