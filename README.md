@@ -64,6 +64,7 @@ JINA_API_KEY=your_jina_api_key_here
 QDRANT_URL=https://your-cluster.qdrant.io
 REDIS_URL=redis://default:password@your-endpoint.upstash.io:6379
 SESSION_TTL=86400
+QUERY_CACHE_TTL=3600
 NODE_ENV=development
 FRONTEND_URL=your_frontend_url_here
 ```
@@ -274,6 +275,7 @@ socket.on('chat:error', (data) => {
 | `QDRANT_URL` | Qdrant server URL | `https://your-cluster.qdrant.io` (cloud) or `http://localhost:6333` (local) |
 | `REDIS_URL` | Redis connection URL | `redis://default:password@endpoint.upstash.io:6379` (cloud) or `redis://localhost:6379` (local) |
 | `SESSION_TTL` | Session TTL in seconds | `86400` (24 hours) |
+| `QUERY_CACHE_TTL` | Query result cache TTL in seconds | `3600` (1 hour) |
 | `NODE_ENV` | Environment | `development` |
 | `FRONTEND_URL` | CORS allowed origin | `http://localhost:5173` |
 
@@ -294,6 +296,35 @@ SESSION_TTL=2592000  # 30 days
    - A new message is saved to a session
    - The session key is refreshed with the new TTL
 
+### Query Result Caching
+
+Query results are automatically cached in Redis to improve performance and reduce API costs. When a query is processed, the result is cached and reused for subsequent identical queries until the cache expires.
+
+**Cache Configuration:**
+
+- Cache key: Based on SHA-256 hash of the normalized query text
+- Default TTL: 1 hour (3600 seconds)
+- Configure via `QUERY_CACHE_TTL` environment variable:
+
+```env
+QUERY_CACHE_TTL=1800   # 30 minutes
+QUERY_CACHE_TTL=3600   # 1 hour (default)
+QUERY_CACHE_TTL=7200   # 2 hours
+QUERY_CACHE_TTL=86400  # 24 hours
+```
+
+**How it works:**
+- Queries are normalized (lowercased and trimmed) before hashing
+- Cache is checked before processing each query
+- If cached result exists, it's returned immediately (no API calls)
+- If not cached, query is processed and result is stored in cache
+- Cache automatically expires after TTL period
+
+**Benefits:**
+- Reduces API costs (Jina embeddings + Gemini API)
+- Improves response times for repeated queries
+- Reduces load on external services
+
 ### Cache Warming
 
 To pre-load popular queries or warm up the cache:
@@ -305,7 +336,7 @@ Run the cache warming script:
 npm run warm-cache
 ```
 
-**Note**: Cache warming is optional and mainly useful for production deployments to improve response times for common queries. The script processes each query sequentially with a 1-second delay between queries to respect API rate limits.
+**Note**: Cache warming is optional and mainly useful for production deployments to improve response times for common queries. The script automatically checks if queries are already cached before processing them, so it's safe to run multiple times. It processes each uncached query sequentially with a 1-second delay between queries to respect API rate limits.
 
 ## Project Structure
 
@@ -394,6 +425,7 @@ Any Node.js hosting platform works (Vercel, Heroku, etc.). Just ensure:
 
 **Optional**:
 - `SESSION_TTL` - Default: 86400 (24 hours)
+- `QUERY_CACHE_TTL` - Default: 3600 (1 hour)
 - `FRONTEND_URL` - Your frontend URL
 - `PORT` - Server port (default: 3001)
 

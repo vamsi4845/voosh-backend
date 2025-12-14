@@ -10,6 +10,7 @@ export interface Config {
   qdrantApiKey: string | undefined;
   redisUrl: string;
   sessionTtl: number;
+  queryCacheTtl: number;
   nodeEnv: string;
   corsOrigin: string;
 }
@@ -22,6 +23,7 @@ export const config: Config = {
   qdrantApiKey: process.env.QDRANT_API_KEY,
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
   sessionTtl: parseInt(process.env.SESSION_TTL || '86400', 10),
+  queryCacheTtl: parseInt(process.env.QUERY_CACHE_TTL || '3600', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   corsOrigin: process.env.FRONTEND_URL || 'http://localhost:5173',
 };

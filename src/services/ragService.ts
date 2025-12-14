@@ -1,6 +1,7 @@
 import { getEmbedding } from './embeddingService.js';
 import { searchSimilar } from './vectorStore.js';
 import { generateResponse, generateStreamResponse } from './geminiService.js';
+import { getCachedQueryResult, cacheQueryResult } from '../utils/redisClient.js';
 import { logger } from '../utils/logger.js';
 
 export interface QueryResult {
@@ -23,9 +24,17 @@ export interface StreamChunk {
   message?: string;
 }
 
-export async function processQuery(query: string, topK = 5): Promise<QueryResult> {
+export async function processQuery(query: string, topK = 5, useCache = true): Promise<QueryResult> {
   try {
     logger.info(`Processing query: ${query.substring(0, 50)}...`);
+    
+    if (useCache) {
+      const cached = await getCachedQueryResult(query);
+      if (cached) {
+        logger.info('Returning cached query result');
+        return cached;
+      }
+    }
     
     logger.debug('Step 1: Generating query embedding...');
     const queryEmbedding = await getEmbedding(query);
@@ -50,20 +59,54 @@ export async function processQuery(query: string, topK = 5): Promise<QueryResult
       score: p.score,
     }));
     
-    logger.info('Query processed successfully');
-    return {
+    const result: QueryResult = {
       answer,
       sources,
     };
+    
+    if (useCache) {
+      await cacheQueryResult(query, result);
+    }
+    
+    logger.info('Query processed successfully');
+    return result;
   } catch (error) {
     logger.error('Failed to process query:', error);
     throw error;
   }
 }
 
-export async function* processQueryStream(query: string, topK = 5): AsyncGenerator<StreamChunk, void, unknown> {
+export async function* processQueryStream(query: string, topK = 5, useCache = true): AsyncGenerator<StreamChunk, void, unknown> {
   try {
     logger.info(`Processing query stream: ${query.substring(0, 50)}...`);
+    
+    if (useCache) {
+      const cached = await getCachedQueryResult(query);
+      if (cached) {
+        logger.info('Returning cached query result (streaming)');
+        
+        yield {
+          type: 'sources',
+          sources: cached.sources,
+        };
+        
+        const chunkSize = 50;
+        const answer = cached.answer;
+        for (let i = 0; i < answer.length; i += chunkSize) {
+          const chunk = answer.slice(i, i + chunkSize);
+          yield {
+            type: 'chunk',
+            text: chunk,
+          };
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        
+        yield {
+          type: 'complete',
+        };
+        return;
+      }
+    }
     
     logger.debug('Step 1: Generating query embedding...');
     const queryEmbedding = await getEmbedding(query);
@@ -93,11 +136,21 @@ export async function* processQueryStream(query: string, topK = 5): AsyncGenerat
       sources,
     };
     
+    let fullAnswer = '';
     for await (const chunk of generateStreamResponse(query, retrievedPassages)) {
+      fullAnswer += chunk;
       yield {
         type: 'chunk',
         text: chunk,
       };
+    }
+    
+    if (useCache) {
+      const result: QueryResult = {
+        answer: fullAnswer,
+        sources,
+      };
+      await cacheQueryResult(query, result);
     }
     
     yield {

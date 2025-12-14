@@ -1,4 +1,5 @@
 import { createClient, RedisClientType } from 'redis';
+import { createHash } from 'crypto';
 import { config } from '../config/config.js';
 import { logger } from './logger.js';
 
@@ -143,6 +144,54 @@ export async function clearSession(sessionId: string): Promise<boolean> {
   } catch (error) {
     logger.error('Failed to clear session:', error);
     throw error;
+  }
+}
+
+export interface QueryResult {
+  answer: string;
+  sources: Array<{
+    title?: string;
+    url?: string;
+    score?: number;
+  }>;
+}
+
+function getQueryCacheKey(query: string): string {
+  const hash = createHash('sha256').update(query.toLowerCase().trim()).digest('hex');
+  return `query:${hash}`;
+}
+
+export async function getCachedQueryResult(query: string): Promise<QueryResult | null> {
+  try {
+    const client = await getRedisClient();
+    const key = getQueryCacheKey(query);
+    const cached = await client.get(key);
+    
+    if (cached) {
+      logger.debug(`Cache hit for query: ${query.substring(0, 50)}...`);
+      return JSON.parse(cached) as QueryResult;
+    }
+    
+    return null;
+  } catch (error) {
+    logger.error('Failed to get cached query result:', error);
+    return null;
+  }
+}
+
+export async function cacheQueryResult(query: string, result: QueryResult): Promise<boolean> {
+  try {
+    const client = await getRedisClient();
+    const key = getQueryCacheKey(query);
+    const resultJson = JSON.stringify(result);
+    
+    await client.setEx(key, config.queryCacheTtl, resultJson);
+    logger.debug(`Cached query result for: ${query.substring(0, 50)}...`);
+    
+    return true;
+  } catch (error) {
+    logger.error('Failed to cache query result:', error);
+    return false;
   }
 }
 
