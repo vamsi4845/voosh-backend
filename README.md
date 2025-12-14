@@ -32,6 +32,11 @@ A Node.js/Express backend for a RAG-powered chatbot that answers questions over 
 ## Installation
 
 1. Clone the repository
+```bash
+git clone https://github.com/vamsi4845/voosh-backend
+cd voosh-backend
+```
+
 2. Install dependencies:
 ```bash
 npm install
@@ -60,6 +65,7 @@ QDRANT_URL=https://your-cluster.qdrant.io
 REDIS_URL=redis://default:password@your-endpoint.upstash.io:6379
 SESSION_TTL=86400
 NODE_ENV=development
+FRONTEND_URL=your_frontend_url_here
 ```
 
 ### Option 2: Local Development (Alternative)
@@ -79,6 +85,7 @@ Then use local URLs in `.env`:
 ```env
 QDRANT_URL=http://localhost:6333
 REDIS_URL=redis://localhost:6379
+FRONTEND_URL=http://localhost:5173
 ```
 
 ## News Ingestion
@@ -429,7 +436,7 @@ Any Node.js hosting platform works (Vercel, Heroku, etc.). Just ensure:
 - Verify network connectivity
 - Check API response in logs
 
-## License
-
-ISC
+### Links
+- [Frontend Repository](https://github.com/vamsi4845/voosh-frontend)
+- [Live](https://voosh-newsly.vercel.app/)
 
