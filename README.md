@@ -1,7 +1,113 @@
 # RAG Chatbot Backend
 
 A Node.js/Express backend for a RAG-powered chatbot that answers questions over a news corpus using Retrieval-Augmented Generation (RAG) pipeline.
+<details>
+<summary><strong>View Architecture Diagram (How Newsly Works)</strong></summary>
 
+```mermaid
+graph TD
+    %% Subgraph: External Services
+    subgraph External_Services [External Services]
+        GoogleGemini[Google Gemini API]
+        Qdrant[Qdrant Vector DB]
+        Redis[Redis Cache & Store]
+        Reuters[Reuters/RSS Feeds]
+    end
+
+    %% Subgraph: News Ingestion Pipeline
+    subgraph Ingestion_Pipeline [News Ingestion Pipeline]
+        Script[ingestNews.ts]
+        NewsIngest[newsIngestion.ts]
+        EmbService_Ingest[embeddingService.ts]
+        VecStore_Ingest[vectorStore.ts]
+
+        Script -->|Step 1: Fetch Articles| NewsIngest
+        NewsIngest -->|Fetch & Parse| Reuters
+        NewsIngest -->|Return Articles + Chunks| Script
+        Script -->|Step 2: Generate Embeddings| EmbService_Ingest
+        EmbService_Ingest -->|Get Batch Embeddings| GoogleGemini
+        Script -->|Step 3: Upsert Vectors| VecStore_Ingest
+        VecStore_Ingest -->|Store Embeddings| Qdrant
+    end
+
+    %% Subgraph: Server & API
+    subgraph Server_Core [Server & API]
+        Client[Frontend Client]
+        Server[server.ts]
+        
+        %% Socket Flow
+        subgraph Socket_Flow [Real-time Chat Flow]
+            SocketHandler[Socket.IO Handler]
+            SessionMgr[sessionManager.ts]
+            RedisClient_Msg[redisClient.ts]
+        end
+
+        %% REST Flow
+        subgraph Rest_Flow [REST API Flow]
+            ChatRoute[routes/chat.ts]
+        end
+
+        %% Shared Services
+        RAG[ragService.ts]
+        RedisClient_Cache[redisClient.ts]
+        EmbService_Chat[embeddingService.ts]
+        VecStore_Chat[vectorStore.ts]
+        GeminiService[geminiService.ts]
+
+        %% Connections
+        Client -- "Socket: Connect" --> Server
+        Server --> SocketHandler
+        
+        %% Socket Interaction
+        Client -- "Emit: chat:message" --> SocketHandler
+        SocketHandler -->|Validate/Gen Session| SessionMgr
+        SocketHandler -->|Save User Msg| RedisClient_Msg
+        RedisClient_Msg -->|Persist History| Redis
+        SocketHandler -->|Process Stream| RAG
+        
+        %% REST Interaction
+        Client -- "POST /api/chat" --> Server
+        Server --> ChatRoute
+        ChatRoute -->|Validate Session| SessionMgr
+        ChatRoute -->|Save User Msg| RedisClient_Msg
+        ChatRoute -->|Process Query| RAG
+
+        %% RAG Logic
+        RAG -->|Check Cache| RedisClient_Cache
+        RedisClient_Cache -.->|Hit| RAG
+        RedisClient_Cache -->|Get/Set| Redis
+        
+        RAG -->|Miss: Get Embedding| EmbService_Chat
+        EmbService_Chat -->|Generate| GoogleGemini
+        
+        RAG -->|Search Similar| VecStore_Chat
+        VecStore_Chat -->|Query| Qdrant
+        
+        RAG -->|Generate Answer| GeminiService
+        GeminiService -->|Prompt + Context| GoogleGemini
+        
+        %% Responses
+        GeminiService -->|Stream/Text| RAG
+        RAG -->|Save Bot Msg| RedisClient_Msg
+        
+        RAG -- "Emit: chat:chunk / chat:sources" --> SocketHandler
+        SocketHandler -- "Events to Client" --> Client
+        
+        RAG -- "Return JSON" --> ChatRoute
+        ChatRoute -- "JSON Response" --> Client
+    end
+    
+    %% Styling
+    classDef service fill:#191919,stroke:#333,stroke-width:2px;
+    classDef database fill:#191919,stroke:#333,stroke-width:2px;
+    classDef external fill:#191919,stroke:#333,stroke-width:2px;
+    
+    class RAG,NewsIngest,EmbService_Ingest,EmbService_Chat,VecStore_Ingest,VecStore_Chat,GeminiService,SessionMgr,ChatRoute,SocketHandler service;
+    class Redis,Qdrant,GoogleGemini,RedisClient_Msg,RedisClient_Cache,VecStore_Chat database;
+    class Reuters external; 
+```
+
+</details>
 ## Tech Stack
 
 - **Runtime**: Node.js (ES Modules)
